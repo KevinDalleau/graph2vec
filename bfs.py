@@ -43,6 +43,6 @@ graph = generate_graphs("one")
 graph_adj = graph[0]
 graph_individuals = graph[1]
 graph_attributes = set(graph_adj.keys())-set(graph_individuals)
-output = gabs_bfs(graph_adj,7,graph_attributes);
+output = bfs_level(graph_adj,7,graph_attributes);
 print(output)
 
