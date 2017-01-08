@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.sparse import coo_matrix
 
 def bfs_level_source(graph, source, attributes):
     "Given a source node and an attributes list, returns a dictionary in the form {attribute1: level1, attribute2: level2,...,attributek: levelk}, where level corresponds to the level where this attribute has been reached from the source node"
@@ -31,13 +32,18 @@ def bfs_level_source(graph, source, attributes):
 
 def bfs_level(graph, individuals):
     attributes = set(graph) - set(individuals)
-    output = ()
-    basis = None
-    dictionary = {}
+    rows = []
+    cols = []
+    data = []
     for individual in individuals:
-        vector,basis = dict_to_list(bfs_level_source(graph,individual,attributes)) # Remember to check if the basis is the same for all vectors
-        dictionary[individual] = get_similarity(vector)
-    output = (dictionary,basis)
+        bfs_local = bfs_level_source(graph,individual,attributes)
+        cols_local = bfs_local.keys()
+        data_local = bfs_local.values()
+        rows_local = [individual for x in range(len(data_local))]
+        rows.extend(rows_local)
+        cols.extend(cols_local)
+        data.extend(data_local)
+    output = coo_matrix((data,(rows,cols)))
     return output
 
 def dict_to_list(dict):
