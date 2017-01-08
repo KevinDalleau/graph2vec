@@ -1,6 +1,6 @@
 import numpy as np
 
-def bfs_level(graph, source, attributes):
+def bfs_level_source(graph, source, attributes):
     "Given a source node and an attributes list, returns a dictionary in the form {attribute1: level1, attribute2: level2,...,attributek: levelk}, where level corresponds to the level where this attribute has been reached from the source node"
     queues = [[source]]
     current_queue = None
@@ -25,6 +25,12 @@ def bfs_level(graph, source, attributes):
                 visited.add(neighbour)
     return output
 
+def bfs_level(graph, individuals):
+    attributes = set(graph) - set(individuals)
+    output = {}
+    for individual in individuals:
+        output[individual] = bfs_level_source(graph,individual,attributes)
+    return output
 
 def generate_graphs(graph_name):
     if(graph_name == "one"):
@@ -43,6 +49,6 @@ graph = generate_graphs("one")
 graph_adj = graph[0]
 graph_individuals = graph[1]
 graph_attributes = set(graph_adj.keys())-set(graph_individuals)
-output = bfs_level(graph_adj,7,graph_attributes);
+output = bfs_level(graph_adj,graph_individuals);
 print(output)
 
