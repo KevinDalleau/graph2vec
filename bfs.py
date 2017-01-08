@@ -21,16 +21,30 @@ def bfs_level_source(graph, source, attributes):
             if (neighbour not in visited):
                 if(neighbour in attributes):
                     queues[0].append(neighbour)
-                    output[neighbour] = level
+                    value = output[neighbour]
+                    if(value == np.Inf):
+                        output[neighbour] = level
+                    else:
+                        output[neighbour]+= 1/level
                 visited.add(neighbour)
     return output
 
 def bfs_level(graph, individuals):
     attributes = set(graph) - set(individuals)
-    output = {}
+    output = ()
+    basis = None
+    dictionary = {}
     for individual in individuals:
-        output[individual] = bfs_level_source(graph,individual,attributes)
+        vector,basis = dict_to_list(bfs_level_source(graph,individual,attributes)) # Remember to check if the basis is the same for all vectors
+        dictionary[individual] = get_similarity(vector)
+    output = (dictionary,basis)
     return output
+
+def dict_to_list(dict):
+    return ([sub_dict[1] for sub_dict in dict.items()],dict.keys())
+
+def get_similarity(vec):
+    return [float(1)/x for x in vec]
 
 def generate_graphs(graph_name):
     if(graph_name == "one"):
@@ -48,7 +62,6 @@ def generate_graphs(graph_name):
 graph = generate_graphs("one")
 graph_adj = graph[0]
 graph_individuals = graph[1]
-graph_attributes = set(graph_adj.keys())-set(graph_individuals)
 output = bfs_level(graph_adj,graph_individuals);
 print(output)
 
