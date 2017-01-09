@@ -1,42 +1,29 @@
 import numpy as np
 from scipy.sparse import coo_matrix
 
-def bfs_level_source(graph, source, attributes):
-    "Given a source node and an attributes list, returns a dictionary in the form {attribute1: level1, attribute2: level2,...,attributek: levelk}, where level corresponds to the level where this attribute has been reached from the source node"
-    queues = [[source]]
-    current_queue = None
-    visited = set([])
+
+def get_paths_source(graph, source, individuals):
+    "From a source node and given a list of individual nodes, returns the depths of the paths between the source node and all other attribute nodes"
+    queue = [(source, [source])]
+    attributes = set(graph.keys()) - set(individuals)
     output = {attribute:np.Inf for attribute in attributes}
-    level = 0
-    while(queues):
-        if(current_queue is None or current_queue == []):
-            current_queue = queues.pop()
-        if(len(current_queue) != 0):
-            s = current_queue.pop(0)
-        else:
-            break
-        if(len(queues)==0):
-            queues.append([])
-            level += 1
-        for neighbour in graph[s]:
-            if (neighbour not in visited):
-                if(neighbour in attributes):
-                    queues[0].append(neighbour)
-                    value = output[neighbour]
-                    if(value == np.Inf):
-                        output[neighbour] = level
-                    else:
-                        output[neighbour]+= 1/level
-                visited.add(neighbour)
+
+    while queue:
+        vertex, path = queue.pop(0)
+        for next in set(graph[vertex]) - set(path):
+            if (next not in individuals):
+                queue.append((next,path+[next]))
+                depth = len(path)
+                output[next] = depth
+ 
     return output
 
 def bfs_level(graph, individuals):
-    attributes = set(graph) - set(individuals)
     rows = []
     cols = []
     data = []
     for individual in individuals:
-        bfs_local = bfs_level_source(graph,individual,attributes)
+        bfs_local = get_paths_source(graph,individual,individuals)
         cols_local = bfs_local.keys()
         data_local = bfs_local.values()
         rows_local = [individual for x in range(len(data_local))]
