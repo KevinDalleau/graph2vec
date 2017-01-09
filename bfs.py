@@ -14,7 +14,10 @@ def get_paths_source(graph, source, individuals):
             if (next not in individuals):
                 queue.append((next,path+[next]))
                 depth = len(path)
-                output[next] = depth
+                if (output[next] == np.Inf):
+                    output[next] = depth
+                elif (output[next] is not 1):
+                    output[next] -= float(1)/depth
  
     return output
 
@@ -25,7 +28,7 @@ def bfs_level(graph, individuals):
     for individual in individuals:
         bfs_local = get_paths_source(graph,individual,individuals)
         cols_local = bfs_local.keys()
-        data_local = bfs_local.values()
+        data_local = get_similarity(bfs_local.values())
         rows_local = [individual for x in range(len(data_local))]
         rows.extend(rows_local)
         cols.extend(cols_local)
@@ -44,8 +47,8 @@ def generate_graphs(graph_name):
         adj_list = {}
         adj_list[1] = [2,3,6]
         adj_list[2] = [1,4]
-        adj_list[3] = [1,5]
-        adj_list[4] = [2,5]
+        adj_list[3] = [1,4,5]
+        adj_list[4] = [2,3,5]
         adj_list[5] = [3,4]
         adj_list[6] = [1,7]
         adj_list[7] = [6]
