@@ -1,4 +1,6 @@
 import numpy as np
+import rdflib
+import time
 
 class graph2vec():
     def __init__(self):
@@ -9,7 +11,10 @@ class graph2vec():
     def fit(self, graph, individuals):
         self.graph_matrix = graph
         self.individuals = individuals
-
+        return self
+    def fit_rdf(self, rdf):
+        
+        return 1
     def get_paths_source(self,source):
         "From a source node and given a list of individual nodes, returns the depths of the paths between the source node and all other attribute nodes"
         individuals = self.individuals
@@ -38,15 +43,80 @@ class graph2vec():
         for individual in individuals:
             bfs_local = self.get_paths_source(individual)
             cols_local = bfs_local.keys()
-            data_local = get_similarity(bfs_local.values())
+            data_local = self.get_similarity(bfs_local.values())
             output[individual] = (data_local,cols_local)
         return output
 
-def dict_to_list(dict):
-    return ([sub_dict[1] for sub_dict in dict.items()],dict.keys())
+    def dict_to_list(self,dict):
+        return ([sub_dict[1] for sub_dict in dict.items()],dict.keys())
 
-def get_similarity(vec):
-    return [float(1)/x for x in vec]
+    def get_similarity(self,vec):
+        return [float(1)/x for x in vec]
+
+class rdf2adj():
+    def __init__(self):
+        self.graph_adj = {}
+        self.individuals = None
+        self.individualsDict = {} # To retrieve individual names
+        self.attributes = None
+        self.attributesDict = {} # To retrieve attributes names
+        self.rdf = None
+        self.offset = len(self.individualsDict)
+
+
+    def fit(self,rdf, attributes=[(None,None)], individual=[(None,None)]):
+        "Fits the object from a rdflib graph, a representation of attributes and individuals"
+
+        self.rdf = rdf
+
+        # LOADING INDIVIDUALS IN THE GRAPH 
+
+        queryString = "SELECT ?individuals ?individualId WHERE {?individuals <http://www.graph.com/nodeType/>  \"individual\" . ?individuals <http://graph.com/identifier> ?individualId.}"
+        res = self.rdf.query(queryString)
+        for row in res:
+            name =  str(row[0]).replace("http://graph.com/individual/","")
+            indId = int(row[1])
+            self.individualsDict[name] = indId
+
+        # LOADING ATTRIBUTES IN THE GRAPH
+
+        queryString = "SELECT ?attributes WHERE {?attributes <http://www.graph.com/nodeType/>  \"attribute\".}"
+        res = self.rdf.query(queryString)
+        i=1
+        for row in res:
+            name = str(row[0]).replace("http://graph.com/","")
+            self.attributesDict[name] = i+self.offset
+            i+=1
+
+        # CONSTRUCTING THE ADJACENCY LIST
+        queryString = "SELECT DISTINCT ?individual ?attribute WHERE {?individual <http://www.graph.com/nodeType/> \"individual\". ?individual <http://graph.com/relation/linked> ?attribute. ?attribute <http://www.graph.com/nodeType/> \"attribute\"}"
+        res= self.rdf.query(queryString)
+        for row in res:
+            individualName = str(row[0]).replace("http://graph.com/individual/","")
+            attributeName = str(row[1]).replace("http://graph.com/","")
+            individualIndex = self.individualsDict[individualName]
+            attributeIndex = self.attributesDict[attributeName]
+            if individualIndex not in self.graph_adj:
+                self.graph_adj[individualIndex] = set()
+            if attributeIndex not in self.graph_adj:
+                self.graph_adj[attributeIndex] = set()
+            self.graph_adj[individualIndex].add(attributeIndex)
+            self.graph_adj[attributeIndex].add(individualIndex)
+
+        queryString = "SELECT DISTINCT ?attribute1 ?commonAttribute WHERE { ?attribute1 <http://www.graph.com/nodeType/> \"attribute\". ?commonAttribute <http://www.graph.com/nodeType/> \"attribute\". ?attribute1 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?commonAttribute.}"
+        res= self.rdf.query(queryString)
+        for row in res:
+            attributeName = str(row[0]).replace("http://graph.com/","")
+            commonAttributeName = str(row[1]).replace("http://graph.com/","")
+            attributeIndex = self.attributesDict[attributeName]
+            commonAttributeIndex = self.attributesDict[commonAttributeName]
+            if attributeIndex not in self.graph_adj:
+                self.graph_adj[attributeIndex] = set()
+            if commonAttributeIndex not in self.graph_adj:
+                self.graph_adj[commonAttributeIndex] = set()
+            self.graph_adj[attributeIndex].add(commonAttributeIndex)
+            self.graph_adj[commonAttributeIndex].add(attributeIndex)
+
 
 def generate_graphs(graph_name):
     if(graph_name == "one"):
@@ -61,11 +131,10 @@ def generate_graphs(graph_name):
         individuals = [1,5,7]
     return((adj_list,individuals))
 
-graph = generate_graphs("one")
-graph_adj = graph[0]
-graph_individuals = graph[1]
-g2v = graph2vec()
-g2v.fit(graph_adj,graph_individuals)
-output = g2v.get_vectors()
-print(output)
-
+# graph = generate_graphs("one")
+# graph_adj = graph[0]
+# graph_individuals = graph[1]
+# g2v = graph2vec()
+# g2v.fit(graph_adj,graph_individuals)
+# output = g2v.get_vectors()
+# print(output)
