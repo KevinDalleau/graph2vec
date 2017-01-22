@@ -1,6 +1,5 @@
 import numpy as np
 import rdflib
-import time
 
 class graph2vec():
     def __init__(self):
@@ -59,66 +58,90 @@ class graph2vec():
 class rdf2adj():
     def __init__(self):
         self.graph_adj = {}
-        self.individuals = None
+        self.individuals = set()
         self.individualsDict = {} # To retrieve individual names
-        self.attributes = None
+        self.attributes = set()
         self.attributesDict = {} # To retrieve attributes names
         self.rdf = None
-        self.offset = len(self.individualsDict)
+        self.offset = 0
+        self.y = {}
 
-
-    def fit(self,rdf, attributes=[(None,None)], individual=[(None,None)]):
-        "Fits the object from a rdflib graph, a representation of attributes and individuals"
+    def fit(self,rdf, individualsSpecifier="?r"):
+        "Fits the object from a rdflib graph, given a relation to specify individuals in the form of (relation, object)"
 
         self.rdf = rdf
 
         # LOADING INDIVIDUALS IN THE GRAPH 
 
-        queryString = "SELECT ?individuals ?individualId WHERE {?individuals <http://www.graph.com/nodeType/>  \"individual\" . ?individuals <http://graph.com/identifier> ?individualId.}"
+        indIterator = 1;
+        
+        queryString = "SELECT DISTINCT ?individuals ?class WHERE {?individuals %s ?class.}" % (individualsSpecifier) # I know I should use format, but wanted to avoid the hassle of doubling brackets here...
+
         res = self.rdf.query(queryString)
         for row in res:
-            name =  str(row[0]).replace("http://graph.com/individual/","")
-            indId = int(row[1])
+            name =  row[0].encode('utf-8')#.rsplit('/',1)[1]
+            indId = indIterator
+            indIterator+=1
             self.individualsDict[name] = indId
+            self.individuals.add(indId)
+            self.y[indId] = row[1].encode('utf8')
+            self.offset += 1 
+        print("Individuals loaded")
+        print("Number of individuals "+str(len(self.individuals)))
 
         # LOADING ATTRIBUTES IN THE GRAPH
 
-        queryString = "SELECT ?attributes WHERE {?attributes <http://www.graph.com/nodeType/>  \"attribute\".}"
+       
+        queryString = "SELECT DISTINCT ?attribute WHERE {?node ?relation ?attribute. FILTER NOT EXISTS {?node %s ?class. ?attribute %s ?class. }}" % (individualsSpecifier, individualsSpecifier)
+
         res = self.rdf.query(queryString)
         i=1
         for row in res:
-            name = str(row[0]).replace("http://graph.com/","")
+            name = row[0].encode('utf-8')
             self.attributesDict[name] = i+self.offset
+            self.attributes.add(i+self.offset)
             i+=1
+        print("Attributes loaded")
 
+  
         # CONSTRUCTING THE ADJACENCY LIST
-        queryString = "SELECT DISTINCT ?individual ?attribute WHERE {?individual <http://www.graph.com/nodeType/> \"individual\". ?individual <http://graph.com/relation/linked> ?attribute. ?attribute <http://www.graph.com/nodeType/> \"attribute\"}"
-        res= self.rdf.query(queryString)
-        for row in res:
-            individualName = str(row[0]).replace("http://graph.com/individual/","")
-            attributeName = str(row[1]).replace("http://graph.com/","")
-            individualIndex = self.individualsDict[individualName]
-            attributeIndex = self.attributesDict[attributeName]
-            if individualIndex not in self.graph_adj:
-                self.graph_adj[individualIndex] = set()
-            if attributeIndex not in self.graph_adj:
-                self.graph_adj[attributeIndex] = set()
-            self.graph_adj[individualIndex].add(attributeIndex)
-            self.graph_adj[attributeIndex].add(individualIndex)
 
-        queryString = "SELECT DISTINCT ?attribute1 ?commonAttribute WHERE { ?attribute1 <http://www.graph.com/nodeType/> \"attribute\". ?commonAttribute <http://www.graph.com/nodeType/> \"attribute\". ?attribute1 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?commonAttribute.}"
+        queryString = "SELECT DISTINCT ?individual ?attribute ?class WHERE {?individual %s ?class . ?individual ?relation ?attribute. }" % (individualsSpecifier)
+
         res= self.rdf.query(queryString)
         for row in res:
-            attributeName = str(row[0]).replace("http://graph.com/","")
-            commonAttributeName = str(row[1]).replace("http://graph.com/","")
-            attributeIndex = self.attributesDict[attributeName]
-            commonAttributeIndex = self.attributesDict[commonAttributeName]
-            if attributeIndex not in self.graph_adj:
-                self.graph_adj[attributeIndex] = set()
-            if commonAttributeIndex not in self.graph_adj:
-                self.graph_adj[commonAttributeIndex] = set()
-            self.graph_adj[attributeIndex].add(commonAttributeIndex)
-            self.graph_adj[commonAttributeIndex].add(attributeIndex)
+            individualName = row[0].encode('utf-8')
+            attributeName = row[1].encode('utf-8')
+            className = row[2].encode('utf-8')
+
+            if(individualName in self.individualsDict and attributeName in self.attributesDict and attributeName != className):
+                individualIndex = self.individualsDict[individualName]
+                attributeIndex = self.attributesDict[attributeName]
+                if individualIndex not in self.graph_adj:
+                    self.graph_adj[individualIndex] = set()
+                if attributeIndex not in self.graph_adj:
+                    self.graph_adj[attributeIndex] = set()
+                self.graph_adj[individualIndex].add(attributeIndex)
+                self.graph_adj[attributeIndex].add(individualIndex)
+
+        print("Ajdacency list half loaded")
+
+        queryString = "SELECT DISTINCT ?node ?attribute WHERE {?node ?relation ?attribute. FILTER NOT EXISTS {?node %s ?class . ?attribute %s ?class .}}"  % (individualsSpecifier, individualsSpecifier)
+        res= self.rdf.query(queryString)
+        for row in res:
+            attributeName = row[0].encode('utf-8')
+            commonAttributeName = row[1].encode('utf-8')
+            if(attributeName in self.attributesDict and commonAttributeName in self.attributesDict):
+                attributeIndex = self.attributesDict[attributeName]
+                commonAttributeIndex = self.attributesDict[commonAttributeName]
+                if attributeIndex not in self.graph_adj:
+                    self.graph_adj[attributeIndex] = set()
+                if commonAttributeIndex not in self.graph_adj:
+                    self.graph_adj[commonAttributeIndex] = set()
+                self.graph_adj[attributeIndex].add(commonAttributeIndex)
+                self.graph_adj[commonAttributeIndex].add(attributeIndex)
+
+
 
 
 def generate_graphs(graph_name):
@@ -134,10 +157,11 @@ def generate_graphs(graph_name):
         individuals = [1,5,7]
     return((adj_list,individuals))
 
-graph = generate_graphs("one")
-graph_adj = graph[0]
-graph_individuals = graph[1]
-g2v = graph2vec()
-g2v.fit(graph_adj,graph_individuals)
-output = g2v.get_vectors()
-print(output)
+# graph = generate_graphs("one")
+# graph_adj = graph[0]
+# graph_individuals = graph[1]
+# g2v = graph2vec()
+# g2v.fit(graph_adj,graph_individuals)
+# output = g2v.get_vectors()
+# print(output)
+
