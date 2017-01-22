@@ -12,27 +12,32 @@ class graph2vec():
         self.graph_matrix = graph
         self.individuals = individuals
         return self
+
     def fit_rdf(self, rdf):
         
         return 1
-    def get_paths_source(self,source):
+
+    def get_paths_source(self, source, maxDepth=None, alpha = float(1)/2):
         "From a source node and given a list of individual nodes, returns the depths of the paths between the source node and all other attribute nodes"
         individuals = self.individuals
         graph = self.graph_matrix
         queue = [(source, [source])]
         attributes = set(graph.keys()) - set(individuals)
-        output = {attribute:np.Inf for attribute in attributes}
+        output = {attribute:0 for attribute in attributes}
+        depth = 1
+        visited = set()
 
         while queue:
+            if(depth==maxDepth):
+                break
+
             vertex, path = queue.pop(0)
             for next in set(graph[vertex]) - set(path):
-                if (next not in individuals):
+                if (next not in individuals and next not in visited):
                     queue.append((next,path+[next]))
+                    visited.add(next)
                     depth = len(path)
-                    if (output[next] == np.Inf):
-                        output[next] = depth
-                    elif (output[next] is not 1):
-                        output[next] -= float(1)/depth
+                    output[next] += alpha**depth
  
         return output
 
@@ -43,15 +48,13 @@ class graph2vec():
         for individual in individuals:
             bfs_local = self.get_paths_source(individual)
             cols_local = bfs_local.keys()
-            data_local = self.get_similarity(bfs_local.values())
+            data_local = bfs_local.values()
             output[individual] = (data_local,cols_local)
         return output
 
     def dict_to_list(self,dict):
         return ([sub_dict[1] for sub_dict in dict.items()],dict.keys())
 
-    def get_similarity(self,vec):
-        return [float(1)/x for x in vec]
 
 class rdf2adj():
     def __init__(self):
@@ -131,10 +134,10 @@ def generate_graphs(graph_name):
         individuals = [1,5,7]
     return((adj_list,individuals))
 
-# graph = generate_graphs("one")
-# graph_adj = graph[0]
-# graph_individuals = graph[1]
-# g2v = graph2vec()
-# g2v.fit(graph_adj,graph_individuals)
-# output = g2v.get_vectors()
-# print(output)
+graph = generate_graphs("one")
+graph_adj = graph[0]
+graph_individuals = graph[1]
+g2v = graph2vec()
+g2v.fit(graph_adj,graph_individuals)
+output = g2v.get_vectors()
+print(output)
